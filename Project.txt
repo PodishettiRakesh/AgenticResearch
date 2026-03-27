@@ -1,0 +1,273 @@
+🚀 FULL PHASE-WISE IMPLEMENTATION PLAN (CrewAI)
+
+🟢 PHASE 0: Project Setup (30–45 mins)
+🎯 Goal:
+Get environment ready so you don’t waste time later.
+✅ Steps:
+1. Create project structure
+agentic-paper-evaluator/
+│
+├── app.py                  # Streamlit UI
+├── main.py                 # Orchestrator
+├── agents/
+│   ├── crew_setup.py
+│   ├── prompts.py
+│
+├── utils/
+│   ├── scraper.py
+│   ├── section_parser.py
+│   ├── chunker.py
+│   ├── llm.py
+│
+├── report/
+│   ├── generator.py
+│
+├── .env
+├── requirements.txt
+└── README.md
+
+2. Install dependencies
+pip install crewai streamlit requests beautifulsoup4 python-dotenv
+
+3. Setup API key
+.env
+OPENROUTER_API_KEY=your_key
+
+🟢 PHASE 1: Data Ingestion (2 hrs)
+🎯 Goal:
+Extract clean text from arXiv
+
+✅ Steps:
+1. Convert URL
+html_url = url.replace("abs", "html")
+
+2. Scrape content
+Use BeautifulSoup
+Extract:
+full text
+figure captions
+
+3. Output format:
+{
+ "full_text": "...",
+ "figures": ["Figure 1: ..."]
+}
+
+⚠️ Fallback (IMPORTANT)
+If HTML fails:
+Keep full text only
+Don’t block progress
+
+🟢 PHASE 2: Section Parsing (1.5 hrs)
+🎯 Goal:
+Split into logical sections
+
+✅ Steps:
+1. Keyword mapping
+SECTION_MAP = {
+ "abstract": ["abstract"],
+ "methodology": ["method", "approach"],
+ "results": ["result", "experiment"],
+ "conclusion": ["conclusion"]
+}
+
+2. Extract sections
+Find headings
+Slice text
+
+3. Fallback (VERY IMPORTANT)
+If sections missing:
+ 👉 Call LLM:
+“Split this paper into abstract, methodology, results, conclusion”
+
+✅ Output:
+sections = {
+ "abstract": "...",
+ "methodology": "...",
+ "results": "...",
+ "conclusion": "..."
+}
+
+🟢 PHASE 3: Chunking Engine (2 hrs)
+🎯 Goal:
+Handle token limits
+
+✅ Steps:
+1. Chunk function
+def chunk_text(text, size=1200, overlap=200):
+   chunks = []
+   for i in range(0, len(text), size - overlap):
+       chunks.append(text[i:i+size])
+   return chunks
+
+2. Apply per section
+chunks = {
+ "methodology": [...],
+ "results": [...],
+ "figures": [...]
+}
+
+💡 Tip:
+Don’t chunk abstract (keep whole)
+
+🟢 PHASE 4: CrewAI Agent Setup (3–4 hrs)
+🎯 Goal:
+Create agents + tasks
+
+✅ Define Agents
+
+🧠 Consistency Agent
+Role: Logical evaluator
+Goal: Check method vs results
+
+✍️ Grammar Agent
+Role: Language reviewer
+
+🧪 Novelty Agent
+Role: Research evaluator
+
+🔍 Fact-check Agent
+Role: Claim verifier
+
+✅ Define Tasks
+Each task = one LLM call
+
+Task 1: Consistency (Map-Reduce)
+Loop through chunks → analyze
+Final reduce → summary
+
+Task 2: Grammar
+Input: abstract
+
+Task 3: Novelty
+Input: abstract + conclusion
+
+Task 4: Fact-check
+Input: selected chunks
+
+⚠️ Important:
+Even if using CrewAI:
+ 👉 You can still manually control flow
+
+🟢 PHASE 5: Agent Execution (2 hrs)
+🎯 Goal:
+Run all agents and collect outputs
+
+✅ Steps:
+results = {
+ "consistency": ...,
+ "grammar": ...,
+ "novelty": ...,
+ "fact_check": ...
+}
+
+💡 Tip:
+Run sequential (simpler)
+Mention “agentic design” in README
+
+🟢 PHASE 6: Aggregation Logic (1.5 hrs)
+🎯 Goal:
+Convert outputs → scores
+
+✅ Logic:
+Consistency Score:
+Extract from agent output
+
+Fabrication Risk:
+risk = 0
+
+if consistency_score < 70:
+   risk += 30
+
+if "unverified" in fact_check:
+   risk += 30
+
+if "low novelty" in novelty:
+   risk += 20
+
+✅ Final Structure:
+final_scores = {
+ "consistency": 78,
+ "grammar": "High",
+ "novelty": "Moderate",
+ "fabrication_risk": 35
+}
+
+🟢 PHASE 7: Report Generator (2 hrs)
+🎯 Goal:
+Generate final output
+
+✅ Format:
+def generate_report(data):
+   return f"""
+# Judgement Report
+
+## Executive Summary
+...
+
+## Scores
+...
+
+## Fact Check Log
+...
+
+## Detailed Analysis
+...
+"""
+
+🟢 PHASE 8: Streamlit UI (1.5 hrs)
+🎯 Goal:
+Simple demo interface
+
+✅ Features:
+Input: arXiv URL
+Button: Analyze
+Spinner: “Agents analyzing…”
+
+✅ Flow:
+if st.button("Evaluate"):
+   run_pipeline()
+   show_report()
+
+🟢 PHASE 9: README (2 hrs)
+🎯 Goal:
+Make evaluator impressed
+
+✅ Must Include:
+1. Architecture
+2. Agent roles
+3. Map-Reduce explanation
+4. Token handling
+5. Limitations
+
+⏱️ FINAL EXECUTION TIMELINE
+🟢 Day 1 (Today)
+Setup ✅
+Scraper ✅
+Section parsing ✅
+Chunking ✅
+
+🟡 Day 2 (Tomorrow)
+Agents (CrewAI) ✅
+Aggregation ✅
+Report ✅
+
+🔵 Final Hours
+UI ✅
+README ✅
+
+🏆 FINAL SUCCESS CRITERIA
+By submission, you MUST have:
+✅ Working pipeline
+ ✅ 4 agents
+ ✅ Structured report
+ ✅ Clean README
+ ✅ Simple UI
+
+🚨 FINAL ADVICE
+👉 Finish FIRST, then improve
+ 👉 Don’t chase perfection
+ 👉 Keep system clean + explainable
+
+🚀 If You Want Next
+
