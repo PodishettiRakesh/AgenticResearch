@@ -145,28 +145,23 @@ def create_tasks(agents: list, sections: dict, chunked: dict):
     """Create sequential tasks for all agents with proper dependencies."""
     
     consistency_agent, grammar_agent, novelty_agent, factcheck_agent, aggregator_agent = agents
-    llm = get_llm()
     
     # Task 1: Consistency Analysis
-    def consistency_analysis():
-        """Perform consistency analysis using existing logic."""
-        consistency_chunks = (
-            chunked.get("methodology", []) + chunked.get("results", [])
-        )[:6]  # Limit to 6 chunks
-        
-        return _map_reduce(
-            llm,
-            CONSISTENCY_SYSTEM,
-            CONSISTENCY_CHUNK_PROMPT,
-            CONSISTENCY_REDUCE_PROMPT,
-            consistency_chunks,
-        )
-    
+    consistency_chunks = (chunked.get("methodology", []) + chunked.get("results", []))[:6]
     consistency_task = Task(
-        description="""Analyze logical consistency between methodology and results sections.
-        Use the provided consistency_analysis function to process methodology and results chunks.
+        description=f"""Analyze logical consistency between methodology and results sections.
+        
+        You must perform a Map-Reduce analysis on these chunks:
+        - Methodology chunks: {chunked.get("methodology", [])}
+        - Results chunks: {chunked.get("results", [])}
+        
+        Use this exact process:
+        1. MAP: For each chunk, use this prompt: "{CONSISTENCY_CHUNK_PROMPT}"
+        2. REDUCE: Combine all analyses and use this prompt: "{CONSISTENCY_REDUCE_PROMPT}"
+        3. System prompt: "{CONSISTENCY_SYSTEM}"
+        
         Focus on identifying gaps between what the methodology promises and what 
-        the results claim.""",
+        the results claim. Provide a detailed consistency analysis.""",
         expected_output="""A detailed consistency analysis including:
         1. OVERALL CONSISTENCY SCORE: (integer 0-100)
         2. MAJOR INCONSISTENCIES: bullet list
@@ -177,17 +172,17 @@ def create_tasks(agents: list, sections: dict, chunked: dict):
     )
     
     # Task 2: Grammar Analysis
-    def grammar_analysis():
-        """Perform grammar analysis using existing logic."""
-        grammar_text = (
-            sections.get("abstract", "") + "\n\n" + sections.get("introduction", "")
-        )[:4000]
-        grammar_prompt = GRAMMAR_PROMPT.format(text=grammar_text)
-        return _single_call(llm, GRAMMAR_SYSTEM, grammar_prompt)
-    
+    grammar_text = (sections.get("abstract", "") + "\n\n" + sections.get("introduction", ""))[:4000]
     grammar_task = Task(
-        description="""Evaluate grammar, language quality, and professional academic tone.
-        Use the provided grammar_analysis function to analyze abstract and introduction sections.""",
+        description=f"""Evaluate grammar, language quality, and professional academic tone.
+        
+        You must analyze this text using this exact prompt:
+        Text to analyze: {grammar_text}
+        
+        Use this prompt template: "{GRAMMAR_PROMPT}"
+        System prompt: "{GRAMMAR_SYSTEM}"
+        
+        Analyze for grammatical correctness, professional academic tone, clarity, and adherence to academic writing standards.""",
         expected_output="""A comprehensive grammar evaluation including:
         1. GRAMMAR RATING: (High / Medium / Low)
         2. TONE ASSESSMENT: (Professional / Acceptable / Informal)
@@ -200,17 +195,19 @@ def create_tasks(agents: list, sections: dict, chunked: dict):
     )
     
     # Task 3: Novelty Assessment
-    def novelty_analysis():
-        """Perform novelty analysis using existing logic."""
-        novelty_prompt = NOVELTY_PROMPT.format(
-            abstract=sections.get("abstract", "Not available")[:2000],
-            conclusion=sections.get("conclusion", "Not available")[:2000],
-        )
-        return _single_call(llm, NOVELTY_SYSTEM, novelty_prompt)
-    
+    abstract_text = sections.get("abstract", "Not available")[:2000]
+    conclusion_text = sections.get("conclusion", "Not available")[:2000]
     novelty_task = Task(
-        description="""Assess the novelty and originality of research contributions.
-        Use the provided novelty_analysis function to evaluate abstract and conclusion.""",
+        description=f"""Assess the novelty and originality of research contributions.
+        
+        You must analyze these texts using this exact prompt:
+        Abstract: {abstract_text}
+        Conclusion: {conclusion_text}
+        
+        Use this prompt template: "{NOVELTY_PROMPT}"
+        System prompt: "{NOVELTY_SYSTEM}"
+        
+        Evaluate originality compared to existing literature, significance of contributions, and potential impact.""",
         expected_output="""A thorough novelty assessment including:
         1. NOVELTY INDEX: (Highly Novel / Moderately Novel / Incremental / Low Novelty)
         2. CLAIMED CONTRIBUTIONS: bullet list
@@ -223,24 +220,22 @@ def create_tasks(agents: list, sections: dict, chunked: dict):
     )
     
     # Task 4: Fact-Check Analysis
-    def factcheck_analysis():
-        """Perform fact-check analysis using existing logic."""
-        all_chunks = []
-        for sec in ["abstract", "methodology", "results", "conclusion"]:
-            all_chunks.extend(chunked.get(sec, []))
-        all_chunks = all_chunks[:6]  # max 6 chunks
-        
-        return _map_reduce(
-            llm,
-            FACTCHECK_SYSTEM,
-            FACTCHECK_CHUNK_PROMPT,
-            FACTCHECK_REDUCE_PROMPT,
-            all_chunks,
-        )
-    
+    all_chunks = []
+    for sec in ["abstract", "methodology", "results", "conclusion"]:
+        all_chunks.extend(chunked.get(sec, []))
+    all_chunks = all_chunks[:6]
     factcheck_task = Task(
-        description="""Verify factual claims, citations, and statistical assertions.
-        Use the provided factcheck_analysis function to examine all sections for verifiable claims.""",
+        description=f"""Verify factual claims, citations, and statistical assertions.
+        
+        You must perform a Map-Reduce analysis on these chunks:
+        - All sections chunks: {all_chunks}
+        
+        Use this exact process:
+        1. MAP: For each chunk, use this prompt: "{FACTCHECK_CHUNK_PROMPT}"
+        2. REDUCE: Combine all analyses and use this prompt: "{FACTCHECK_REDUCE_PROMPT}"
+        3. System prompt: "{FACTCHECK_SYSTEM}"
+        
+        Examine for constants, formulas, historical facts, statistical assertions, and citations.""",
         expected_output="""A comprehensive fact-check log including:
         1. VERIFIED CLAIMS: bullet list
         2. UNVERIFIED CLAIMS: bullet list
@@ -252,47 +247,20 @@ def create_tasks(agents: list, sections: dict, chunked: dict):
     )
     
     # Task 5: Fabrication Aggregation
-    def fabrication_analysis():
-        """Perform fabrication aggregation using existing logic."""
-        # Get previous results (these would be passed in from context)
-        consistency_result = consistency_analysis()
-        grammar_result = grammar_analysis()
-        novelty_result = novelty_analysis()
-        factcheck_result = factcheck_analysis()
-        
-        # Extract scores
-        consistency_score = 70
-        match = re.search(r"OVERALL CONSISTENCY SCORE[:\s]+(\d{1,3})", consistency_result, re.IGNORECASE)
-        if match:
-            consistency_score = min(int(match.group(1)), 100)
-        
-        grammar_rating = "Medium"
-        match = re.search(r"GRAMMAR RATING[:\s]+(High|Medium|Low)", grammar_result, re.IGNORECASE)
-        if match:
-            grammar_rating = match.group(1).capitalize()
-        
-        novelty_index = "Moderately Novel"
-        match = re.search(
-            r"NOVELTY INDEX[:\s]+(Highly Novel|Moderately Novel|Incremental|Low Novelty)",
-            novelty_result, re.IGNORECASE
-        )
-        if match:
-            novelty_index = match.group(1)
-        
-        factcheck_summary = factcheck_result[:500]
-        
-        fab_prompt = FABRICATION_PROMPT.format(
-            consistency_score=consistency_score,
-            grammar_rating=grammar_rating,
-            novelty_index=novelty_index,
-            factcheck_summary=factcheck_summary,
-        )
-        
-        return _single_call(llm, "", fab_prompt)
-    
     aggregation_task = Task(
-        description="""Synthesize all agent analyses and calculate fabrication probability.
-        Use the provided fabrication_analysis function to aggregate all previous results.""",
+        description=f"""Synthesize all agent analyses and calculate fabrication probability.
+        
+        You must aggregate all previous results and calculate fabrication probability.
+        
+        Use this exact prompt template: "{FABRICATION_PROMPT}"
+        
+        Extract these values from the previous analyses:
+        - Consistency score (from consistency analysis)
+        - Grammar rating (from grammar analysis)  
+        - Novelty index (from novelty analysis)
+        - Fact-check summary (from fact-check analysis)
+        
+        Provide overall fabrication probability assessment, risk level, executive summary, and final recommendation.""",
         expected_output="""A final integrity assessment including:
         1. FABRICATION PROBABILITY: (0-100%)
         2. RISK LEVEL: (Low / Medium / High / Critical)
@@ -318,8 +286,8 @@ def run_agents(sections: dict, chunked: dict) -> dict:
     """
     Run all agents using CrewAI orchestration and return a results dict.
     
-    This replaces the previous custom orchestration with proper CrewAI Agent/Task/Crew pattern.
-    All existing logic and prompts are preserved through embedded functions.
+    This implementation uses CrewAI as the ONLY execution engine.
+    All LLM calls happen through CrewAI tools and agents.
     """
     print("\n[CrewAI] Initializing agents and tasks...")
     
@@ -341,68 +309,73 @@ def run_agents(sections: dict, chunked: dict) -> dict:
     
     print("\n[CrewAI] Starting sequential execution...")
     
-    # Execute the crew
+    # Execute the crew - this is the ONLY execution point
     result = crew.kickoff()
     
     print("\n[CrewAI] All agents completed successfully!")
     
-    # For now, return the existing logic results to maintain compatibility
-    # This ensures the report generator continues to work
-    llm = get_llm()
+    # Extract results from CrewAI execution
+    # The result should contain outputs from all tasks in order
+    task_results = extract_crew_results(result)
+    
+    return task_results
+
+
+def extract_crew_results(crew_result) -> dict:
+    """
+    Extract structured results from CrewAI execution.
+    
+    Args:
+        crew_result: The result object returned by crew.kickoff()
+        
+    Returns:
+        Dictionary with keys: consistency, grammar, novelty, fact_check, fabrication
+    """
+    # Convert CrewAI result to string if needed
+    if hasattr(crew_result, 'raw'):
+        result_text = crew_result.raw
+    elif hasattr(crew_result, 'result'):
+        result_text = crew_result.result
+    else:
+        result_text = str(crew_result)
+    
+    # Parse the combined result to extract individual task outputs
+    # CrewAI typically returns results separated by task completion markers
     results = {}
     
-    # Use the original logic for now until we can properly integrate CrewAI results
-    consistency_chunks = (chunked.get("methodology", []) + chunked.get("results", []))[:6]
-    results["consistency"] = _map_reduce(
-        llm, CONSISTENCY_SYSTEM, CONSISTENCY_CHUNK_PROMPT, CONSISTENCY_REDUCE_PROMPT, consistency_chunks
-    )
+    # Split by task completion patterns and extract individual results
+    task_patterns = [
+        (r"OVERALL CONSISTENCY SCORE.*?(?=1\.|2\.|3\.|4\.|5\.|$)", "consistency"),
+        (r"GRAMMAR RATING.*?(?=1\.|2\.|3\.|4\.|5\.|$)", "grammar"),
+        (r"NOVELTY INDEX.*?(?=1\.|2\.|3\.|4\.|5\.|$)", "novelty"),
+        (r"VERIFIED CLAIMS.*?(?=1\.|2\.|3\.|4\.|5\.|$)", "fact_check"),
+        (r"FABRICATION PROBABILITY.*?(?=1\.|2\.|3\.|4\.|5\.|$)", "fabrication")
+    ]
     
-    grammar_text = (sections.get("abstract", "") + "\n\n" + sections.get("introduction", ""))[:4000]
-    grammar_prompt = GRAMMAR_PROMPT.format(text=grammar_text)
-    results["grammar"] = _single_call(llm, GRAMMAR_SYSTEM, grammar_prompt)
+    # Extract each task result
+    for pattern, key in task_patterns:
+        match = re.search(pattern, result_text, re.DOTALL | re.IGNORECASE)
+        if match:
+            # Extract a reasonable chunk around the match
+            start = max(0, match.start() - 100)
+            end = min(len(result_text), match.end() + 500)
+            results[key] = result_text[start:end].strip()
+        else:
+            # Fallback: try to find the key in the text
+            if key.upper() in result_text.upper():
+                # Find the section and extract surrounding content
+                key_pos = result_text.upper().find(key.upper())
+                start = max(0, key_pos - 50)
+                end = min(len(result_text), key_pos + 1000)
+                results[key] = result_text[start:end].strip()
+            else:
+                results[key] = f"{key.title()} analysis completed but result not clearly extracted."
     
-    novelty_prompt = NOVELTY_PROMPT.format(
-        abstract=sections.get("abstract", "Not available")[:2000],
-        conclusion=sections.get("conclusion", "Not available")[:2000],
-    )
-    results["novelty"] = _single_call(llm, NOVELTY_SYSTEM, novelty_prompt)
-    
-    all_chunks = []
-    for sec in ["abstract", "methodology", "results", "conclusion"]:
-        all_chunks.extend(chunked.get(sec, []))
-    all_chunks = all_chunks[:6]
-    results["fact_check"] = _map_reduce(
-        llm, FACTCHECK_SYSTEM, FACTCHECK_CHUNK_PROMPT, FACTCHECK_REDUCE_PROMPT, all_chunks
-    )
-    
-    # Fabrication aggregation
-    consistency_score = 70
-    match = re.search(r"OVERALL CONSISTENCY SCORE[:\s]+(\d{1,3})", results["consistency"], re.IGNORECASE)
-    if match:
-        consistency_score = min(int(match.group(1)), 100)
-    
-    grammar_rating = "Medium"
-    match = re.search(r"GRAMMAR RATING[:\s]+(High|Medium|Low)", results["grammar"], re.IGNORECASE)
-    if match:
-        grammar_rating = match.group(1).capitalize()
-    
-    novelty_index = "Moderately Novel"
-    match = re.search(
-        r"NOVELTY INDEX[:\s]+(Highly Novel|Moderately Novel|Incremental|Low Novelty)",
-        results["novelty"], re.IGNORECASE
-    )
-    if match:
-        novelty_index = match.group(1)
-    
-    factcheck_summary = results["fact_check"][:500]
-    
-    fab_prompt = FABRICATION_PROMPT.format(
-        consistency_score=consistency_score,
-        grammar_rating=grammar_rating,
-        novelty_index=novelty_index,
-        factcheck_summary=factcheck_summary,
-    )
-    results["fabrication"] = _single_call(llm, "", fab_prompt)
+    # Ensure all required keys exist
+    required_keys = ["consistency", "grammar", "novelty", "fact_check", "fabrication"]
+    for key in required_keys:
+        if key not in results:
+            results[key] = f"{key.title()} analysis completed but result extraction failed."
     
     return results
 
