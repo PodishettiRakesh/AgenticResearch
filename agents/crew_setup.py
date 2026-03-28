@@ -95,7 +95,7 @@ def run_agents(sections: dict, chunked: dict) -> dict:
     results = {}
 
     # ── 1. Consistency Agent (Map-Reduce on methodology + results) ────────
-    print("\n[Agent 1/4] 🧠 Consistency Agent running...")
+    print("\n[Agent 1/4] Consistency Agent running...")
     consistency_chunks = (
         chunked.get("methodology", []) + chunked.get("results", [])
     )
@@ -108,28 +108,28 @@ def run_agents(sections: dict, chunked: dict) -> dict:
         CONSISTENCY_REDUCE_PROMPT,
         consistency_chunks,
     )
-    print("[Agent 1/4] ✅ Consistency analysis complete.")
+    print("[Agent 1/4] Consistency analysis complete.")
 
     # ── 2. Grammar Agent (abstract + introduction, single call) ───────────
-    print("\n[Agent 2/4] ✍️  Grammar Agent running...")
+    print("\n[Agent 2/4] Grammar Agent running...")
     grammar_text = (
         sections.get("abstract", "") + "\n\n" + sections.get("introduction", "")
     )[:4000]  # cap at ~1000 tokens
     grammar_prompt = GRAMMAR_PROMPT.format(text=grammar_text)
     results["grammar"] = _single_call(llm, GRAMMAR_SYSTEM, grammar_prompt)
-    print("[Agent 2/4] ✅ Grammar analysis complete.")
+    print("[Agent 2/4] Grammar analysis complete.")
 
     # ── 3. Novelty Agent (abstract + conclusion, single call) ─────────────
-    print("\n[Agent 3/4] 🧪 Novelty Agent running...")
+    print("\n[Agent 3/4] Novelty Agent running...")
     novelty_prompt = NOVELTY_PROMPT.format(
         abstract=sections.get("abstract", "Not available")[:2000],
         conclusion=sections.get("conclusion", "Not available")[:2000],
     )
     results["novelty"] = _single_call(llm, NOVELTY_SYSTEM, novelty_prompt)
-    print("[Agent 3/4] ✅ Novelty analysis complete.")
+    print("[Agent 3/4] Novelty analysis complete.")
 
     # ── 4. Fact-Check Agent (Map-Reduce on all sections) ──────────────────
-    print("\n[Agent 4/4] 🔍 Fact-Check Agent running...")
+    print("\n[Agent 4/4] Fact-Check Agent running...")
     all_chunks = []
     for sec in ["abstract", "methodology", "results", "conclusion"]:
         all_chunks.extend(chunked.get(sec, []))

@@ -64,5 +64,5 @@ def get_llm(
         convert_system_message_to_human=True,  # Gemini quirk
     )
 
-    print(f"[LLM] ✅ Gemini model loaded: {model}")
+    print(f"[LLM] SUCCESS: Gemini model loaded: {model}")
     return llm

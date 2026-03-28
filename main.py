@@ -51,16 +51,16 @@ def run_pipeline(arxiv_url: str, output_path: str = "judgement_report.md") -> st
         The Markdown report as a string.
     """
     print("=" * 60)
-    print("  🚀 Agentic Research Paper Evaluator")
+    print("  Agentic Research Paper Evaluator")
     print("=" * 60)
-    print(f"\n📎 URL: {arxiv_url}\n")
+    print(f"\nURL: {arxiv_url}\n")
 
     # ── Phase 1: Scrape ────────────────────────────────────────────────────
-    print("─" * 40)
-    print("📥 Phase 1: Scraping paper...")
+    print("-" * 40)
+    print("Phase 1: Scraping paper...")
     scraped = scrape_arxiv(arxiv_url)
     if not scraped["full_text"]:
-        print("❌ ERROR: Could not extract text from the provided URL.")
+        print("ERROR: Could not extract text from the provided URL.")
         sys.exit(1)
 
     title = scraped.get("title", "Unknown Paper")
@@ -69,23 +69,23 @@ def run_pipeline(arxiv_url: str, output_path: str = "judgement_report.md") -> st
     print(f"   Figures found: {len(scraped['figures'])}")
 
     # ── Phase 2: Section Parsing ───────────────────────────────────────────
-    print("\n─" * 40)
-    print("🔍 Phase 2: Parsing sections...")
+    print("\n" + "-" * 40)
+    print("Phase 2: Parsing sections...")
     sections = parse_sections(scraped["full_text"])
 
     # ── Phase 3: Chunking ──────────────────────────────────────────────────
-    print("\n─" * 40)
-    print("✂️  Phase 3: Chunking sections...")
+    print("\n" + "-" * 40)
+    print("Phase 3: Chunking sections...")
     chunked = chunk_sections(sections)
 
     # ── Phase 4 & 5: Agent Execution ──────────────────────────────────────
-    print("\n─" * 40)
-    print("🤖 Phase 4: Running agents...")
+    print("\n" + "-" * 40)
+    print("Phase 4: Running agents...")
     agent_results = run_agents(sections, chunked)
 
     # ── Phase 6: Report Generation ────────────────────────────────────────
-    print("\n─" * 40)
-    print("📝 Phase 5: Generating report...")
+    print("\n" + "-" * 40)
+    print("Phase 5: Generating report...")
     report_md = generate_report(
         title=title,
         arxiv_url=arxiv_url,
@@ -95,7 +95,7 @@ def run_pipeline(arxiv_url: str, output_path: str = "judgement_report.md") -> st
     save_report(report_md, output_path)
 
     print("\n" + "=" * 60)
-    print(f"  ✅ Done! Report saved to: {output_path}")
+    print(f"  Done! Report saved to: {output_path}")
     print("=" * 60)
 
     return report_md

@@ -89,9 +89,9 @@ def scrape_arxiv(url: str) -> dict:
             result["full_text"] = abstract_tag.get_text(separator=" ", strip=True).replace("Abstract:", "").strip()
 
         result["source"] = "abstract"
-        print(f"[Scraper] ⚠️  Fallback to abstract page — {len(result['full_text'])} chars")
+        print(f"[Scraper] WARNING: Fallback to abstract page - {len(result['full_text'])} chars")
         return result
     except Exception as e:
-        print(f"[Scraper] ❌ Abstract fallback also failed: {e}")
+        print(f"[Scraper] ERROR: Abstract fallback also failed: {e}")
 
     return result
