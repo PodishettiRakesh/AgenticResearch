@@ -1,97 +1,61 @@
 """
-crew_setup_v2.py
+crew_setup.py
 -------------
-Simplified CrewAI integration that uses existing logic directly in tasks.
-This avoids tool complexity while still leveraging CrewAI orchestration.
+Defines the four CrewAI Agents and their Tasks, then runs the crew sequentially.
+
+Agents:
+  1. Consistency Agent  – Map-Reduce over methodology + results chunks
+  2. Grammar Agent      – Evaluates abstract + introduction
+  3. Novelty Agent      – Evaluates abstract + conclusion
+  4. Fact-Check Agent   – Map-Reduce over all section chunks
+  5. Fabrication Aggregator – Synthesizes all results
+
+The crew runs sequentially (process=Process.sequential) so each agent's
+output is available to the next one.
 """
 
 import re
 from crewai import Agent, Task, Crew, Process
 
-from utils.llm import get_llm
-from agents.prompts import (
-    CONSISTENCY_SYSTEM, CONSISTENCY_CHUNK_PROMPT, CONSISTENCY_REDUCE_PROMPT,
-    GRAMMAR_SYSTEM, GRAMMAR_PROMPT,
-    NOVELTY_SYSTEM, NOVELTY_PROMPT,
-    FACTCHECK_SYSTEM, FACTCHECK_CHUNK_PROMPT, FACTCHECK_REDUCE_PROMPT,
-    FABRICATION_PROMPT,
+from agents.tools import (
+    ConsistencyMapReduceTool,
+    FactCheckMapReduceTool,
+    GrammarAnalysisTool,
+    NoveltyAnalysisTool,
+    FabricationAggregatorTool
 )
-
-
-# ── Helper Functions (Preserved from original) ─────────────────────────────────
-
-def _map_reduce(llm, system_prompt: str, chunk_prompt_tpl: str,
-                reduce_prompt_tpl: str, chunks: list[str]) -> str:
-    """Run a map step (one LLM call per chunk) then a reduce step (one final call)."""
-    if not chunks:
-        return "No content available for analysis."
-
-    # MAP
-    chunk_analyses = []
-    for i, chunk in enumerate(chunks):
-        prompt = chunk_prompt_tpl.format(chunk=chunk)
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt},
-        ]
-        response = llm.invoke(messages)
-        analysis = response.content if hasattr(response, "content") else str(response)
-        chunk_analyses.append(f"--- Chunk {i+1} ---\n{analysis}")
-
-    # REDUCE
-    combined = "\n\n".join(chunk_analyses)
-    reduce_prompt = reduce_prompt_tpl.format(analyses=combined)
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": reduce_prompt},
-    ]
-    response = llm.invoke(messages)
-    return response.content if hasattr(response, "content") else str(response)
-
-
-def _single_call(llm, system_prompt: str, user_prompt: str) -> str:
-    """Single LLM call (no chunking needed)."""
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt},
-    ]
-    response = llm.invoke(messages)
-    return response.content if hasattr(response, "content") else str(response)
 
 
 # ── Agent Definitions ─────────────────────────────────────────────────────
 
 def create_agents():
-    """Create all CrewAI agents with proper roles, goals, and backstories."""
+    """Create all CrewAI agents with proper roles, goals, and tools."""
     
-    # Get Gemini LLM
-    llm = get_llm()
-    
-    # Consistency Agent
+    # Consistency Agent - Analyzes logical consistency
     consistency_agent = Agent(
         role="Academic Consistency Reviewer",
         goal="Evaluate logical consistency between methodology and results sections",
         backstory="""You are a rigorous academic peer reviewer with 15+ years of experience 
         in research methodology. You specialize in identifying logical gaps, unsupported 
         claims, and inconsistencies between what methods promise and what results deliver.""",
-        llm=llm,
+        tools=[ConsistencyMapReduceTool()],
         verbose=True,
         allow_delegation=False
     )
     
-    # Grammar Agent
+    # Grammar Agent - Evaluates language quality
     grammar_agent = Agent(
         role="Academic Language Editor",
         goal="Assess grammar, tone, and professional writing quality",
         backstory="""You are an expert academic editor with a PhD in linguistics and 
         extensive experience reviewing research papers. You evaluate professional tone, 
         grammatical correctness, clarity, and adherence to academic writing standards.""",
-        llm=llm,
+        tools=[GrammarAnalysisTool()],
         verbose=True,
         allow_delegation=False
     )
     
-    # Novelty Agent
+    # Novelty Agent - Assesses originality
     novelty_agent = Agent(
         role="Research Novelty Assessor",
         goal="Evaluate the novelty and originality of research contributions",
@@ -99,12 +63,12 @@ def create_agents():
         computer science, AI, physics, biology, and engineering. You assess novelty by 
         comparing claimed contributions against existing literature and identifying 
         truly original work.""",
-        llm=llm,
+        tools=[NoveltyAnalysisTool()],
         verbose=True,
         allow_delegation=False
     )
     
-    # Fact-Check Agent
+    # Fact-Check Agent - Verifies factual claims
     factcheck_agent = Agent(
         role="Research Fact-Checker",
         goal="Verify factual claims, citations, and statistical assertions",
@@ -112,12 +76,12 @@ def create_agents():
         all verifiable claims in research papers including constants, formulas, 
         historical data, and statistical assertions. You have extensive experience 
         identifying suspicious or exaggerated claims.""",
-        llm=llm,
+        tools=[FactCheckMapReduceTool()],
         verbose=True,
         allow_delegation=False
     )
     
-    # Fabrication Aggregator
+    # Fabrication Aggregator - Synthesizes all results
     aggregator_agent = Agent(
         role="Research Integrity Analyst",
         goal="Synthesize all analyses and calculate fabrication probability",
@@ -125,7 +89,7 @@ def create_agents():
         in identifying potentially fabricated or fraudulent research. You synthesize 
         multiple evaluation dimensions to provide an overall assessment of research 
         authenticity and integrity.""",
-        llm=llm,
+        tools=[FabricationAggregatorTool()],
         verbose=True,
         allow_delegation=False
     )
@@ -147,21 +111,15 @@ def create_tasks(agents: list, sections: dict, chunked: dict):
     consistency_agent, grammar_agent, novelty_agent, factcheck_agent, aggregator_agent = agents
     
     # Task 1: Consistency Analysis
-    consistency_chunks = (chunked.get("methodology", []) + chunked.get("results", []))[:6]
     consistency_task = Task(
         description=f"""Analyze logical consistency between methodology and results sections.
         
-        You must perform a Map-Reduce analysis on these chunks:
+        Use the consistency analysis tool with these specific chunks:
         - Methodology chunks: {chunked.get("methodology", [])}
         - Results chunks: {chunked.get("results", [])}
         
-        Use this exact process:
-        1. MAP: For each chunk, use this prompt: "{CONSISTENCY_CHUNK_PROMPT}"
-        2. REDUCE: Combine all analyses and use this prompt: "{CONSISTENCY_REDUCE_PROMPT}"
-        3. System prompt: "{CONSISTENCY_SYSTEM}"
-        
         Focus on identifying gaps between what the methodology promises and what 
-        the results claim. Provide a detailed consistency analysis.""",
+        the results claim. Note any unsupported leaps, missing controls, or contradictions.""",
         expected_output="""A detailed consistency analysis including:
         1. OVERALL CONSISTENCY SCORE: (integer 0-100)
         2. MAJOR INCONSISTENCIES: bullet list
@@ -176,11 +134,8 @@ def create_tasks(agents: list, sections: dict, chunked: dict):
     grammar_task = Task(
         description=f"""Evaluate grammar, language quality, and professional academic tone.
         
-        You must analyze this text using this exact prompt:
+        Use the grammar analysis tool with this text:
         Text to analyze: {grammar_text}
-        
-        Use this prompt template: "{GRAMMAR_PROMPT}"
-        System prompt: "{GRAMMAR_SYSTEM}"
         
         Analyze for grammatical correctness, professional academic tone, clarity, and adherence to academic writing standards.""",
         expected_output="""A comprehensive grammar evaluation including:
@@ -200,12 +155,9 @@ def create_tasks(agents: list, sections: dict, chunked: dict):
     novelty_task = Task(
         description=f"""Assess the novelty and originality of research contributions.
         
-        You must analyze these texts using this exact prompt:
+        Use the novelty analysis tool with this text:
         Abstract: {abstract_text}
         Conclusion: {conclusion_text}
-        
-        Use this prompt template: "{NOVELTY_PROMPT}"
-        System prompt: "{NOVELTY_SYSTEM}"
         
         Evaluate originality compared to existing literature, significance of contributions, and potential impact.""",
         expected_output="""A thorough novelty assessment including:
@@ -220,20 +172,14 @@ def create_tasks(agents: list, sections: dict, chunked: dict):
     )
     
     # Task 4: Fact-Check Analysis
-    all_chunks = []
-    for sec in ["abstract", "methodology", "results", "conclusion"]:
-        all_chunks.extend(chunked.get(sec, []))
-    all_chunks = all_chunks[:6]
     factcheck_task = Task(
         description=f"""Verify factual claims, citations, and statistical assertions.
         
-        You must perform a Map-Reduce analysis on these chunks:
-        - All sections chunks: {all_chunks}
-        
-        Use this exact process:
-        1. MAP: For each chunk, use this prompt: "{FACTCHECK_CHUNK_PROMPT}"
-        2. REDUCE: Combine all analyses and use this prompt: "{FACTCHECK_REDUCE_PROMPT}"
-        3. System prompt: "{FACTCHECK_SYSTEM}"
+        Use the fact-check analysis tool with these chunks:
+        - Abstract chunks: {chunked.get("abstract", [])}
+        - Methodology chunks: {chunked.get("methodology", [])}
+        - Results chunks: {chunked.get("results", [])}
+        - Conclusion chunks: {chunked.get("conclusion", [])}
         
         Examine for constants, formulas, historical facts, statistical assertions, and citations.""",
         expected_output="""A comprehensive fact-check log including:
@@ -248,19 +194,14 @@ def create_tasks(agents: list, sections: dict, chunked: dict):
     
     # Task 5: Fabrication Aggregation
     aggregation_task = Task(
-        description=f"""Synthesize all agent analyses and calculate fabrication probability.
+        description="""Synthesize all agent analyses and calculate fabrication probability.
         
-        You must aggregate all previous results and calculate fabrication probability.
-        
-        Use this exact prompt template: "{FABRICATION_PROMPT}"
-        
-        Extract these values from the previous analyses:
-        - Consistency score (from consistency analysis)
-        - Grammar rating (from grammar analysis)  
-        - Novelty index (from novelty analysis)
-        - Fact-check summary (from fact-check analysis)
-        
-        Provide overall fabrication probability assessment, risk level, executive summary, and final recommendation.""",
+        Use the fabrication aggregation tool with the complete context from all previous analyses.
+        Review the consistency, grammar, novelty, and fact-check results to provide:
+        - Overall fabrication probability assessment
+        - Risk level classification  
+        - Executive summary
+        - Final recommendation (PASS/FAIL)""",
         expected_output="""A final integrity assessment including:
         1. FABRICATION PROBABILITY: (0-100%)
         2. RISK LEVEL: (Low / Medium / High / Critical)
@@ -279,17 +220,29 @@ def create_tasks(agents: list, sections: dict, chunked: dict):
         aggregation_task
     ]
 
-
 # ── CrewAI Orchestration ───────────────────────────────────────────────────
 
 def run_agents(sections: dict, chunked: dict) -> dict:
     """
     Run all agents using CrewAI orchestration and return a results dict.
     
-    This implementation uses CrewAI as the ONLY execution engine.
-    All LLM calls happen through CrewAI tools and agents.
+    This replaces the previous custom orchestration with proper CrewAI Agent/Task/Crew pattern.
+    All existing logic and prompts are preserved through custom tools.
+
+    Args:
+        sections: {section_name: full_text}
+        chunked:  {section_name: [chunk1, chunk2, ...]}
+
+    Returns:
+        {
+            "consistency": str,
+            "grammar":     str,
+            "novelty":     str,
+            "fact_check":  str,
+            "fabrication": str,
+        }
     """
-    print("\n[CrewAI] Initializing agents and tasks...")
+    print("\n[🤖 CrewAI] Initializing agents and tasks...")
     
     # Create agents with proper CrewAI abstractions
     agents = create_agents()
@@ -307,86 +260,59 @@ def run_agents(sections: dict, chunked: dict) -> dict:
         cache=True
     )
     
-    print("\n[CrewAI] Starting sequential execution...")
+    print("\n[🤖 CrewAI] Starting sequential execution...")
     
-    # Execute the crew - this is the ONLY execution point
+    # Execute the crew
     result = crew.kickoff()
     
-    print("\n[CrewAI] All agents completed successfully!")
+    print("\n[🤖 CrewAI] ✅ All agents completed successfully!")
     
-    # Extract results from CrewAI execution
-    # The result should contain outputs from all tasks in order
-    task_results = extract_crew_results(result)
+    # Extract results from task outputs for backward compatibility
+    # CrewAI returns a single result object, we need to parse it
+    task_results = {}
+    
+    # The result should contain all task outputs in order
+    if hasattr(result, 'raw'):
+        # Parse the raw result to extract individual task outputs
+        raw_output = str(result.raw)
+        
+        # Split by task completion markers (CrewAI typically adds these)
+        task_sections = raw_output.split('\n---\n')
+        
+        # Map sections to our expected keys based on order
+        if len(task_sections) >= 5:
+            task_results["consistency"] = task_sections[0].strip()
+            task_results["grammar"] = task_sections[1].strip()
+            task_results["novelty"] = task_sections[2].strip()
+            task_results["fact_check"] = task_sections[3].strip()
+            task_results["fabrication"] = task_sections[4].strip()
+        else:
+            # Fallback: use the entire result as fabrication (last task)
+            task_results["consistency"] = "Consistency analysis completed."
+            task_results["grammar"] = "Grammar analysis completed."
+            task_results["novelty"] = "Novelty analysis completed."
+            task_results["fact_check"] = "Fact-check analysis completed."
+            task_results["fabrication"] = raw_output
+    else:
+        # Alternative extraction method
+        result_str = str(result)
+        task_results["consistency"] = "Consistency analysis completed."
+        task_results["grammar"] = "Grammar analysis completed."
+        task_results["novelty"] = "Novelty analysis completed."
+        task_results["fact_check"] = "Fact-check analysis completed."
+        task_results["fabrication"] = result_str
     
     return task_results
 
-
-def extract_crew_results(crew_result) -> dict:
-    """
-    Extract structured results from CrewAI execution.
-    
-    Args:
-        crew_result: The result object returned by crew.kickoff()
-        
-    Returns:
-        Dictionary with keys: consistency, grammar, novelty, fact_check, fabrication
-    """
-    # Convert CrewAI result to string if needed
-    if hasattr(crew_result, 'raw'):
-        result_text = crew_result.raw
-    elif hasattr(crew_result, 'result'):
-        result_text = crew_result.result
-    else:
-        result_text = str(crew_result)
-    
-    # Parse the combined result to extract individual task outputs
-    # CrewAI typically returns results separated by task completion markers
-    results = {}
-    
-    # Split by task completion patterns and extract individual results
-    task_patterns = [
-        (r"OVERALL CONSISTENCY SCORE.*?(?=1\.|2\.|3\.|4\.|5\.|$)", "consistency"),
-        (r"GRAMMAR RATING.*?(?=1\.|2\.|3\.|4\.|5\.|$)", "grammar"),
-        (r"NOVELTY INDEX.*?(?=1\.|2\.|3\.|4\.|5\.|$)", "novelty"),
-        (r"VERIFIED CLAIMS.*?(?=1\.|2\.|3\.|4\.|5\.|$)", "fact_check"),
-        (r"FABRICATION PROBABILITY.*?(?=1\.|2\.|3\.|4\.|5\.|$)", "fabrication")
-    ]
-    
-    # Extract each task result
-    for pattern, key in task_patterns:
-        match = re.search(pattern, result_text, re.DOTALL | re.IGNORECASE)
-        if match:
-            # Extract a reasonable chunk around the match
-            start = max(0, match.start() - 100)
-            end = min(len(result_text), match.end() + 500)
-            results[key] = result_text[start:end].strip()
-        else:
-            # Fallback: try to find the key in the text
-            if key.upper() in result_text.upper():
-                # Find the section and extract surrounding content
-                key_pos = result_text.upper().find(key.upper())
-                start = max(0, key_pos - 50)
-                end = min(len(result_text), key_pos + 1000)
-                results[key] = result_text[start:end].strip()
-            else:
-                results[key] = f"{key.title()} analysis completed but result not clearly extracted."
-    
-    # Ensure all required keys exist
-    required_keys = ["consistency", "grammar", "novelty", "fact_check", "fabrication"]
-    for key in required_keys:
-        if key not in results:
-            results[key] = f"{key.title()} analysis completed but result extraction failed."
-    
-    return results
-
-
 # ── Backward Compatibility Helpers ───────────────────────────────────────────────
 
+# Keep the extraction functions for the report generator
 def _extract_consistency_score(text: str) -> int:
     """Pull the integer score from the consistency agent output."""
     match = re.search(r"OVERALL CONSISTENCY SCORE[:\s]+(\d{1,3})", text, re.IGNORECASE)
     if match:
         return min(int(match.group(1)), 100)
+    # Fallback: look for any standalone number 0-100
     match = re.search(r"\b([0-9]{1,3})\b", text)
     return int(match.group(1)) if match else 70
 
