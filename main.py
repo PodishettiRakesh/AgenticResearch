@@ -13,21 +13,21 @@ import sys
 import os
 import asyncio
 
+# Disable ALL telemetry and tracing to avoid connection issues
+os.environ["CREWAI_TELEMETRY_ENABLED"] = "false"
+os.environ["OTEL_SDK_DISABLED"] = "true"
+os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = ""
+os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = ""
+
 # Set environment variable to force synchronous transport before any imports
 os.environ["GRPC_ASYNCIO_TRANSPORT"] = "None"
 
 # Ensure project root is on the path when running directly
 sys.path.insert(0, os.path.dirname(__file__))
 
-# Fix event loop issue
-try:
-    asyncio.get_running_loop()
-except RuntimeError:
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
-from utils.scraping import scrape_arxiv, parse_sections
-from utils.processing import chunk_sections
+from utils.scraping.scraper import scrape_arxiv
+from utils.scraping.section_parser import parse_sections
+from utils.processing.chunker import chunk_sections
 from agents.crew_setup import run_agents
 from report.generator import generate_report, save_report
 

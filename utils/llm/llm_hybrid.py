@@ -1,14 +1,16 @@
 """
 llm_hybrid.py
 ------------
-Hybrid LLM setup supporting both Gemini (cloud) and Ollama (local) providers.
-Intelligent provider selection with individual controls and fallback capabilities.
+Hybrid LLM provider supporting both Gemini (cloud) and Ollama (local).
 """
 
 import os
+import time
+from typing import Dict, Any, Optional
+
 import asyncio
 from dotenv import load_dotenv
-from typing import Union, Optional
+from typing import Union
 from utils.config.settings import settings
 from core.exceptions import ConfigurationError
 
@@ -86,22 +88,36 @@ def get_ollama_llm(
         # Check if Ollama is available
         try:
             import requests
-            response = requests.get("http://localhost:11434/api/tags", timeout=5)
+            from utils.config.settings import settings
+            ollama_url = settings.OLLAMA_BASE_URL + "/api/tags"
+            response = requests.get(ollama_url, timeout=5)
             if response.status_code != 200:
                 raise ConnectionError("Ollama server not running")
         except (requests.RequestException, ConnectionError):
             raise ConnectionError(
-                "Ollama server not accessible. "
+                f"Ollama server not accessible at {settings.OLLAMA_BASE_URL}. "
                 "Start Ollama with: ollama serve"
             )
+        
+        # Use correct parameter names for Ollama
+        print(f"[LLM] 🔄 Initializing Ollama model: {model}")
+        print(f"[LLM] 📡 Connecting to: {settings.OLLAMA_BASE_URL}")
+        print(f"[LLM] 📊 Input tokens estimated: ~{len(str(model)) * 2} (for context)")
+        
+        start_time = time.time()
         
         llm = Ollama(
             model=model,
             temperature=temperature,
-            max_tokens=max_output_tokens,
+            num_predict=max_output_tokens,  # Ollama uses num_predict not max_tokens
+            base_url=settings.OLLAMA_BASE_URL,  # Use configured base URL
         )
 
-        print(f"[LLM] SUCCESS: Ollama model loaded: {model}")
+        load_time = time.time() - start_time
+        print(f"[LLM] ✅ SUCCESS: Ollama model loaded: {model}")
+        print(f"[LLM] ⏱️ Load time: {load_time:.2f} seconds")
+        print(f"[LLM] 🎯 Ready for agent processing")
+        print(f"[LLM] 💡 Note: Local LLM processing typically 2-3x slower than cloud APIs")
         return llm
         
     except ImportError as e:

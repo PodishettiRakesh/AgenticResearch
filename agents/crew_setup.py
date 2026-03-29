@@ -321,6 +321,26 @@ def run_agents(sections: dict, chunked: dict) -> dict:
     print(f"[DEBUG] Methodology content preview: {chunked.get('methodology', [''])[0][:200] if chunked.get('methodology') else 'None'}")
     print(f"[DEBUG] Results content preview: {chunked.get('results', [''])[0][:200] if chunked.get('results') else 'None'}")
     
+    # Enhanced logging setup
+    import logging
+    import time
+    
+    # Create custom logger for agent progress
+    logger = logging.getLogger("agent_progress")
+    logger.setLevel(logging.INFO)
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s', 
+                                  datefmt='%H:%M:%S')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    
+    print("\n" + "="*60)
+    print("🚀 AGENT EXECUTION STARTED")
+    print("="*60)
+    
+    start_time = time.time()
+    logger.info("📋 Starting agent pipeline execution")
+    
     crew = Crew(
         agents=agents,
         tasks=tasks,
@@ -328,7 +348,16 @@ def run_agents(sections: dict, chunked: dict) -> dict:
         verbose=False,  # Disable verbose logging to prevent Unicode encoding errors
     )
     
+    logger.info("🔄 Starting CrewAI execution...")
+    logger.info("📝 Consistency Agent: Starting methodology and results analysis")
+    
     result = crew.kickoff()
+    
+    end_time = time.time()
+    execution_time = end_time - start_time
+    
+    logger.info("✅ CrewAI execution completed")
+    logger.info(f"⏱️ Total execution time: {execution_time:.2f} seconds")
     
     print("\n[CrewAI] All agents completed successfully!")
     print(f"[DEBUG] Raw result type: {type(result)}")
@@ -338,8 +367,8 @@ def run_agents(sections: dict, chunked: dict) -> dict:
     # The result should contain outputs from all tasks in order
     task_results = extract_crew_results(result)
     
-    print(f"[DEBUG] Consistency agent completed!")
-    print(f"[DEBUG] Consistency score: {task_results.get('consistency', 'N/A')}")
+    logger.info("📊 Consistency Agent: Analysis completed")
+    logger.info(f"📈 Consistency Score: {task_results.get('consistency', 'N/A')}")
     
     # Break here to check consistency agent output before continuing
     import sys
