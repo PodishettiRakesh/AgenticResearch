@@ -108,8 +108,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--url",
-        required=True,
-        help="arXiv paper URL (e.g. https://arxiv.org/abs/2301.00001)",
+        required=False,
+        default="https://arxiv.org/html/2603.25702v1",
+        help="arXiv paper URL (e.g. https://arxiv.org/html/2603.25702v1)",
     )
     parser.add_argument(
         "--output",
