@@ -13,35 +13,28 @@ import sys
 import os
 import asyncio
 
+# Disable ALL telemetry and tracing to avoid connection issues
+os.environ["CREWAI_TELEMETRY_ENABLED"] = "false"
+os.environ["OTEL_SDK_DISABLED"] = "true"
+os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = ""
+os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = ""
+
 # Set environment variable to force synchronous transport before any imports
 os.environ["GRPC_ASYNCIO_TRANSPORT"] = "None"
 
 # Ensure project root is on the path when running directly
 sys.path.insert(0, os.path.dirname(__file__))
 
-# Fix event loop issue
-try:
-    asyncio.get_running_loop()
-except RuntimeError:
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
-from utils.scraper import scrape_arxiv
-from utils.section_parser import parse_sections
-from utils.chunker import chunk_sections
+from utils.scraping.scraper import scrape_arxiv
+from utils.scraping.section_parser import parse_sections
+from utils.processing.chunker import chunk_sections
 from agents.crew_setup import run_agents
 from report.generator import generate_report, save_report
 
 
-def run_pipeline(arxiv_url: str, output_path: str = "judgement_report.md") -> str:
+def run_pipeline(arxiv_url: str, output_path: str = "reports/judgement_report.md") -> str:
     """
-    Full end-to-end pipeline:
-      1. Scrape arXiv paper
-      2. Parse into sections
-      3. Chunk sections
-      4. Run 4 agents (Consistency, Grammar, Novelty, Fact-Check)
-      5. Aggregate + Fabrication score
-      6. Generate & save Markdown report
+    Full end-to-end pipeline using original crew_setup with new utility structure.
 
     Args:
         arxiv_url:   The arXiv paper URL (abs format).
@@ -50,10 +43,33 @@ def run_pipeline(arxiv_url: str, output_path: str = "judgement_report.md") -> st
     Returns:
         The Markdown report as a string.
     """
+    
+    # Generate unique filename based on paper ID or timestamp
+    import re
+    import time
+    
+    # Extract paper ID from URL for unique naming
+    paper_id = re.search(r'(\d+\.\d+)', arxiv_url)
+    if paper_id:
+        base_name = f"judgement_report_{paper_id.group(1)}"
+    else:
+        base_name = f"judgement_report_{int(time.time())}"
+    
+    # Add timestamp to prevent overwrites
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    unique_filename = f"{base_name}_{timestamp}.md"
+    
+    # Use reports folder
+    if not output_path.startswith("reports/"):
+        output_path = f"reports/{unique_filename}"
+    else:
+        output_path = output_path.replace("judgement_report.md", unique_filename)
+    
     print("=" * 60)
     print("  Agentic Research Paper Evaluator")
     print("=" * 60)
-    print(f"\nURL: {arxiv_url}\n")
+    print(f"\nURL: {arxiv_url}")
+    print(f"Output: {output_path}\n")
 
     # ── Phase 1: Scrape ────────────────────────────────────────────────────
     print("-" * 40)
@@ -108,13 +124,14 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--url",
-        required=True,
-        help="arXiv paper URL (e.g. https://arxiv.org/abs/2301.00001)",
+        required=False,
+        default="https://arxiv.org/html/2603.25702v1",
+        help="arXiv paper URL (e.g. https://arxiv.org/html/2603.25702v1)",
     )
     parser.add_argument(
         "--output",
-        default="judgement_report.md",
-        help="Output Markdown file path (default: judgement_report.md)",
+        default="reports/judgement_report.md",
+        help="Output Markdown file path (default: reports/judgement_report.md)",
     )
     args = parser.parse_args()
     run_pipeline(args.url, args.output)

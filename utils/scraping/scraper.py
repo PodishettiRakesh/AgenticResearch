@@ -94,7 +94,7 @@ def scrape_arxiv(url: str) -> dict:
 
             result["source"] = "html"
             print(f"[Scraper] HTML scrape successful - {len(result['full_text'])} chars")
-            print(f"full_text: {result['full_text']}")
+            # print(f"full_text: {result['full_text']}")
             return result
     except Exception as e:
         print(f"[Scraper] HTML scrape failed: {e}")

@@ -102,8 +102,8 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-.env
-.venv
+# .env
+# .venv
 env/
 venv/
 ENV/
@@ -177,8 +177,8 @@ logs/
 reports/
 
 # API Keys and Secrets
-.env.local
-.env.production
+# .env.local
+# .env.production
 api_keys.txt
 secrets.json
 

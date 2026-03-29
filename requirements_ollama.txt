@@ -1,0 +1,17 @@
+# Core dependencies (existing)
+crewai
+python-dotenv
+langchain-google-genai
+requests
+beautifulsoup4
+aiohttp
+
+# Additional dependencies for Ollama support
+langchain-community
+
+# For local model serving (optional but recommended)
+ollama
+
+# Development and testing
+pytest
+streamlit
