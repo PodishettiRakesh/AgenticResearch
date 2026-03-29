@@ -32,7 +32,7 @@ from agents.crew_setup import run_agents
 from report.generator import generate_report, save_report
 
 
-def run_pipeline(arxiv_url: str, output_path: str = "judgement_report.md") -> str:
+def run_pipeline(arxiv_url: str, output_path: str = "reports/judgement_report.md") -> str:
     """
     Full end-to-end pipeline using original crew_setup with new utility structure.
 
@@ -43,10 +43,33 @@ def run_pipeline(arxiv_url: str, output_path: str = "judgement_report.md") -> st
     Returns:
         The Markdown report as a string.
     """
+    
+    # Generate unique filename based on paper ID or timestamp
+    import re
+    import time
+    
+    # Extract paper ID from URL for unique naming
+    paper_id = re.search(r'(\d+\.\d+)', arxiv_url)
+    if paper_id:
+        base_name = f"judgement_report_{paper_id.group(1)}"
+    else:
+        base_name = f"judgement_report_{int(time.time())}"
+    
+    # Add timestamp to prevent overwrites
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    unique_filename = f"{base_name}_{timestamp}.md"
+    
+    # Use reports folder
+    if not output_path.startswith("reports/"):
+        output_path = f"reports/{unique_filename}"
+    else:
+        output_path = output_path.replace("judgement_report.md", unique_filename)
+    
     print("=" * 60)
     print("  Agentic Research Paper Evaluator")
     print("=" * 60)
-    print(f"\nURL: {arxiv_url}\n")
+    print(f"\nURL: {arxiv_url}")
+    print(f"Output: {output_path}\n")
 
     # ── Phase 1: Scrape ────────────────────────────────────────────────────
     print("-" * 40)
@@ -107,8 +130,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--output",
-        default="judgement_report.md",
-        help="Output Markdown file path (default: judgement_report.md)",
+        default="reports/judgement_report.md",
+        help="Output Markdown file path (default: reports/judgement_report.md)",
     )
     args = parser.parse_args()
     run_pipeline(args.url, args.output)
