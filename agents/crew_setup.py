@@ -81,9 +81,11 @@ def create_agents():
     
     # Display current provider information
     provider_info = get_provider_info()
-    print(f"\n[LLM Provider] {provider_info['provider'].upper()} ({provider_info['type']})")
+    print(f"\n[LLM Provider] {provider_info['active_provider'].upper()} ({provider_info['type']})")
     print(f"[LLM Model] {provider_info['model']}")
-    print(f"[LLM Advantages] {', '.join(provider_info['advantages'])}")
+    print(f"[LLM Selection] {provider_info['selection_method']}")
+    print(f"[Gemini Available] {provider_info['gemini_enabled']}")
+    print(f"[Ollama Available] {provider_info['ollama_enabled']}")
     
     # Get LLM instance based on environment
     llm = get_llm()

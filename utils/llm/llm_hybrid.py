@@ -2,18 +2,17 @@
 llm_hybrid.py
 ------------
 Hybrid LLM setup supporting both Gemini (cloud) and Ollama (local) providers.
-Environment-based selection allows flexible switching between providers.
+Intelligent provider selection with individual controls and fallback capabilities.
 """
 
 import os
 import asyncio
 from dotenv import load_dotenv
-from typing import Union
+from typing import Union, Optional
+from utils.config.settings import settings
+from core.exceptions import ConfigurationError
 
 load_dotenv()
-
-# Environment configuration
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").lower()  # "gemini" or "ollama"
 
 
 def _ensure_event_loop():
@@ -27,20 +26,29 @@ def _ensure_event_loop():
 
 
 def get_gemini_llm(
-    model: str = "gemini-2.0-flash",
-    temperature: float = 0.3,
-    max_output_tokens: int = 2048,
+    model: str = None,
+    temperature: float = None,
+    max_output_tokens: int = None,
 ):
     """Get Gemini LLM instance (cloud-based)."""
     try:
         from langchain_google_genai import ChatGoogleGenerativeAI
         
-        api_key = os.getenv("GEMINI_API_KEY")
+        config = settings.get_llm_config()
+        if config["provider"] != "gemini":
+            raise ConfigurationError(f"Gemini requested but active provider is {config['provider']}")
+        
+        api_key = config["api_key"]
         if not api_key:
-            raise EnvironmentError(
+            raise ConfigurationError(
                 "GEMINI_API_KEY not found for Gemini provider. "
                 "Please set it in your .env file or environment variables."
             )
+
+        # Use config defaults if not specified
+        model = model or config["model"]
+        temperature = temperature or config["temperature"]
+        max_output_tokens = max_output_tokens or config["max_output_tokens"]
 
         # Fix for event loop issue
         _ensure_event_loop()
@@ -108,7 +116,7 @@ def get_llm(
     **kwargs
 ) -> Union:
     """
-    Get LLM instance based on environment configuration.
+    Get LLM instance based on intelligent provider selection.
     
     Args:
         provider: Override LLM provider ("gemini" or "ollama")
@@ -117,39 +125,46 @@ def get_llm(
     Returns:
         LLM instance (Gemini or Ollama)
     """
-    # Use provider from parameter or environment
-    provider = (provider or LLM_PROVIDER).lower()
+    # Use provider from parameter or intelligent selection
+    if provider:
+        selected_provider = provider.lower()
+    else:
+        selected_provider = settings.get_active_provider()
     
-    print(f"[LLM] Initializing provider: {provider}")
+    print(f"[LLM] Initializing provider: {selected_provider}")
     
-    if provider == "ollama":
+    if selected_provider == "ollama":
         return get_ollama_llm(**kwargs)
-    elif provider == "gemini":
+    elif selected_provider == "gemini":
         return get_gemini_llm(**kwargs)
     else:
-        raise ValueError(
-            f"Unsupported LLM provider: {provider}. "
+        raise ConfigurationError(
+            f"Unsupported LLM provider: {selected_provider}. "
             "Supported providers: 'gemini', 'ollama'"
         )
 
 
 def get_provider_info():
     """Get current LLM provider information."""
+    config = settings.get_llm_config()
+    available = settings.get_available_providers()
+    
     return {
-        "provider": LLM_PROVIDER,
-        "type": "local" if LLM_PROVIDER == "ollama" else "cloud",
-        "model": "llama3:8b" if LLM_PROVIDER == "ollama" else "gemini-2.0-flash",
-        "advantages": {
-            "ollama": ["Free", "No quota limits", "Offline", "Private"],
-            "gemini": ["High quality", "No setup required", "Cloud-based"]
-        }[LLM_PROVIDER]
+        "active_provider": config["provider"],
+        "type": "local" if config["provider"] == "ollama" else "cloud",
+        "model": config["model"],
+        "available_providers": available,
+        "gemini_enabled": available["gemini"],
+        "ollama_enabled": available["ollama"],
+        "selection_method": "explicit" if settings.LLM_PROVIDER in available else "auto"
     }
 
 
 if __name__ == "__main__":
     # Test LLM initialization
     print("Testing hybrid LLM setup...")
-    print(f"Current provider: {LLM_PROVIDER}")
+    print(f"Active provider: {settings.get_active_provider()}")
+    print(f"Available providers: {settings.get_available_providers()}")
     
     try:
         llm = get_llm()

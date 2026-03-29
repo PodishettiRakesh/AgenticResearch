@@ -135,7 +135,7 @@ def parse_sections(full_text: str) -> dict:
             sections["abstract"] = full_text[:800].strip()
 
     _log_sections(sections)
-    print(f"sections from parse_sections: {sections}")
+    # print(f"sections from parse_sections: {sections}")
     return sections
 
 

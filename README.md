@@ -227,9 +227,16 @@ python main.py --url "https://arxiv.org/html/2603.25702v1"
 
 ## 📚 Documentation
 
-- **[PROJECT_ARCHITECTURE.md](PROJECT_ARCHITECTURE.md)**: Detailed technical architecture
-- **[INTERVIEW_PREP.md](INTERVIEW_PREP.md)**: Interview preparation guide
+### **📁 Comprehensive Documentation**
+- **[documents/](documents/)**: Complete documentation collection
+  - **[PROJECT_ARCHITECTURE.md](documents/PROJECT_ARCHITECTURE.md)**: Detailed technical architecture
+  - **[INTERVIEW_PREP.md](documents/INTERVIEW_PREP.md)**: Interview preparation guide
+  - **[CHALLENGE_SOLUTION_LOG.md](documents/CHALLENGE_SOLUTION_LOG.md)**: Development history and solutions
+  - **[RESTRUCTURING_SUMMARY.md](documents/RESTRUCTURING_SUMMARY.md)**: Project transformation summary
+
+### **🔧 Setup Guides**
 - **[HYBRID_LLM_SETUP.md](HYBRID_LLM_SETUP.md)**: LLM configuration guide
+- **[setup_ollama.bat](setup_ollama.bat)**: Automated Ollama setup script
 
 ## 🤝 Contributing
 

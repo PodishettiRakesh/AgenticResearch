@@ -15,6 +15,12 @@ class Settings:
     
     # LLM Configuration
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "gemini").lower()
+    
+    # Individual Provider Controls
+    GEMINI_ENABLED: bool = os.getenv("GEMINI_ENABLED", "true").lower() == "true"
+    OLLAMA_ENABLED: bool = os.getenv("OLLAMA_ENABLED", "false").lower() == "true"
+    
+    # Provider Configuration
     GEMINI_API_KEY: Optional[str] = os.getenv("GEMINI_API_KEY")
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
     OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama3:8b")
@@ -70,9 +76,36 @@ class Settings:
             raise ConfigurationError("Configuration validation failed:\n" + "\n".join(f"  - {error}" for error in errors))
     
     @classmethod
+    def get_available_providers(cls) -> Dict[str, bool]:
+        """Get availability status of all providers."""
+        return {
+            "gemini": cls.GEMINI_ENABLED and bool(cls.GEMINI_API_KEY),
+            "ollama": cls.OLLAMA_ENABLED
+        }
+    
+    @classmethod
+    def get_active_provider(cls) -> str:
+        """Determine the best available provider."""
+        available = cls.get_available_providers()
+        
+        # If LLM_PROVIDER is explicitly set and available, use it
+        if cls.LLM_PROVIDER in available and available[cls.LLM_PROVIDER]:
+            return cls.LLM_PROVIDER
+        
+        # Auto-select best available provider
+        if available["ollama"]:
+            return "ollama"
+        elif available["gemini"]:
+            return "gemini"
+        else:
+            raise ConfigurationError("No LLM provider is available. Configure GEMINI_API_KEY or enable Ollama.")
+    
+    @classmethod
     def get_llm_config(cls) -> Dict[str, Any]:
         """Get LLM-specific configuration."""
-        if cls.LLM_PROVIDER == "gemini":
+        provider = cls.get_active_provider()
+        
+        if provider == "gemini":
             return {
                 "provider": "gemini",
                 "model": cls.GEMINI_MODEL,
@@ -80,7 +113,7 @@ class Settings:
                 "temperature": cls.TEMPERATURE,
                 "max_output_tokens": cls.MAX_OUTPUT_TOKENS
             }
-        elif cls.LLM_PROVIDER == "ollama":
+        elif provider == "ollama":
             return {
                 "provider": "ollama",
                 "model": cls.OLLAMA_MODEL,
@@ -89,7 +122,7 @@ class Settings:
                 "max_tokens": cls.MAX_OUTPUT_TOKENS
             }
         else:
-            raise ConfigurationError(f"Unsupported LLM provider: {cls.LLM_PROVIDER}")
+            raise ConfigurationError(f"Unsupported LLM provider: {provider}")
     
     @classmethod
     def get_processing_config(cls) -> Dict[str, Any]:
