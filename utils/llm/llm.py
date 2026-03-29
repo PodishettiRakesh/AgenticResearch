@@ -27,7 +27,7 @@ def _ensure_event_loop():
 
 
 def get_llm(
-    model: str = "gemini-1.5-flash",
+    model: str = "gemini-2.0-flash",  # Use working model from available list
     temperature: float = 0.3,
     max_output_tokens: int = 2048,
 ) -> ChatGoogleGenerativeAI:

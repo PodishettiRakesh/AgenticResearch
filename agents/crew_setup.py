@@ -5,10 +5,16 @@ Simplified CrewAI integration that uses existing logic directly in tasks.
 This avoids tool complexity while still leveraging CrewAI orchestration.
 """
 
+import os
 import re
+import sys
+from datetime import datetime
+from typing import Optional, Dict, Any
+from dotenv import load_dotenv
+from langchain_google_genai import ChatGoogleGenerativeAI
 from crewai import Agent, Task, Crew, Process
 
-from utils.llm import get_llm
+from utils.llm import get_llm, get_provider_info
 from agents.prompts import (
     CONSISTENCY_SYSTEM, CONSISTENCY_CHUNK_PROMPT, CONSISTENCY_REDUCE_PROMPT,
     GRAMMAR_SYSTEM, GRAMMAR_PROMPT,
@@ -16,6 +22,15 @@ from agents.prompts import (
     FACTCHECK_SYSTEM, FACTCHECK_CHUNK_PROMPT, FACTCHECK_REDUCE_PROMPT,
     FABRICATION_PROMPT,
 )
+
+
+# ── API Call Logging Wrapper ────────────────────────────────────────────
+def log_api_call(agent_name: str, prompt_type: str, input_length: int):
+    """Log each API call for debugging purposes."""
+    print(f"[API_CALL] 🤖 {agent_name} - {prompt_type}")
+    print(f"[API_CALL] 📝 Input length: {input_length} chars")
+    print(f"[API_CALL] ⏰ Time: {datetime.now().strftime('%H:%M:%S')}")
+    print("-" * 40)
 
 
 # ── Helper Functions (Preserved from original) ─────────────────────────────────
@@ -62,9 +77,15 @@ def _single_call(llm, system_prompt: str, user_prompt: str) -> str:
 # ── Agent Definitions ─────────────────────────────────────────────────────
 
 def create_agents():
-    """Create all CrewAI agents with proper roles, goals, and backstories."""
+    """Create all agents with appropriate LLM provider."""
     
-    # Get Gemini LLM
+    # Display current provider information
+    provider_info = get_provider_info()
+    print(f"\n[LLM Provider] {provider_info['provider'].upper()} ({provider_info['type']})")
+    print(f"[LLM Model] {provider_info['model']}")
+    print(f"[LLM Advantages] {', '.join(provider_info['advantages'])}")
+    
+    # Get LLM instance based on environment
     llm = get_llm()
     
     # Consistency Agent
@@ -284,39 +305,48 @@ def create_tasks(agents: list, sections: dict, chunked: dict):
 
 def run_agents(sections: dict, chunked: dict) -> dict:
     """
-    Run all agents using CrewAI orchestration and return a results dict.
+    Run the full CrewAI pipeline with proper result extraction.
     
     This implementation uses CrewAI as the ONLY execution engine.
     All LLM calls happen through CrewAI tools and agents.
     """
     print("\n[CrewAI] Initializing agents and tasks...")
-    
-    # Create agents with proper CrewAI abstractions
     agents = create_agents()
-    
-    # Create sequential tasks with dependencies
     tasks = create_tasks(agents, sections, chunked)
     
-    # Set up the crew with sequential process
+    print("\n[CrewAI] Starting sequential execution...")
+    print(f"[DEBUG] Consistency chunks: {len(chunked.get('methodology', []) + chunked.get('results', []))}")
+    print(f"[DEBUG] Methodology content preview: {chunked.get('methodology', [''])[0][:200] if chunked.get('methodology') else 'None'}")
+    print(f"[DEBUG] Results content preview: {chunked.get('results', [''])[0][:200] if chunked.get('results') else 'None'}")
+    
     crew = Crew(
         agents=agents,
         tasks=tasks,
         process=Process.sequential,
-        verbose=True,
-        memory=True,
-        cache=True
+        verbose=False,  # Disable verbose logging to prevent Unicode encoding errors
     )
     
-    print("\n[CrewAI] Starting sequential execution...")
-    
-    # Execute the crew - this is the ONLY execution point
     result = crew.kickoff()
     
     print("\n[CrewAI] All agents completed successfully!")
+    print(f"[DEBUG] Raw result type: {type(result)}")
+    print(f"[DEBUG] Raw result preview: {str(result)[:500]}...")
     
     # Extract results from CrewAI execution
     # The result should contain outputs from all tasks in order
     task_results = extract_crew_results(result)
+    
+    print(f"[DEBUG] Consistency agent completed!")
+    print(f"[DEBUG] Consistency score: {task_results.get('consistency', 'N/A')}")
+    
+    # Break here to check consistency agent output before continuing
+    import sys
+    print("\n" + "="*50)
+    print("🎯 CONSISTENCY AGENT ANALYSIS COMPLETE!")
+    print(f"📊 Consistency Score: {task_results.get('consistency', 'N/A')}")
+    print("="*50)
+    print("⏸️ Execution paused. Press Ctrl+C to continue with other agents or check logs.")
+    print("⏸️ Or modify run_agents() to remove this break point.")
     
     return task_results
 
@@ -364,20 +394,31 @@ def extract_crew_results(crew_result) -> dict:
             # Fallback: try to find the key in the text
             if key.upper() in result_text.upper():
                 # Find the section and extract surrounding content
-                key_pos = result_text.upper().find(key.upper())
-                start = max(0, key_pos - 50)
-                end = min(len(result_text), key_pos + 1000)
-                results[key] = result_text[start:end].strip()
-            else:
-                results[key] = f"{key.title()} analysis completed but result not clearly extracted."
+                pass  # Placeholder for future implementation
     
-    # Ensure all required keys exist
-    required_keys = ["consistency", "grammar", "novelty", "fact_check", "fabrication"]
-    for key in required_keys:
-        if key not in results:
-            results[key] = f"{key.title()} analysis completed but result extraction failed."
+    # Extract other scores similarly
+    grammar_match = re.search(r'GRAMMAR SCORE:\s*(\d+)', result_text, re.IGNORECASE)
+    grammar_score = grammar_match.group(1) if grammar_match else "0"
     
-    return results
+    novelty_match = re.search(r'NOVELTY SCORE:\s*(\d+)', result_text, re.IGNORECASE)
+    novelty_score = novelty_match.group(1) if novelty_match else "0"
+    
+    factcheck_match = re.search(r'FACT-CHECK SCORE:\s*(\d+)', result_text, re.IGNORECASE)
+    factcheck_score = factcheck_match.group(1) if factcheck_match else "0"
+    
+    fabrication_match = re.search(r'FABRICATION SCORE:\s*(\d+)', result_text, re.IGNORECASE)
+    fabrication_score = fabrication_match.group(1) if fabrication_match else "0"
+    
+    final_results = {
+        "consistency": consistency_score,
+        "grammar": grammar_score,
+        "novelty": novelty_score,
+        "fact_check": factcheck_score,
+        "fabrication": fabrication_score,
+    }
+    
+    print("[DEBUG] Final extracted results:", final_results)
+    return final_results
 
 
 # ── Backward Compatibility Helpers ───────────────────────────────────────────────

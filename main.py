@@ -26,22 +26,15 @@ except RuntimeError:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-from utils.scraper import scrape_arxiv
-from utils.section_parser import parse_sections
-from utils.chunker import chunk_sections
+from utils.scraping import scrape_arxiv, parse_sections
+from utils.processing import chunk_sections
 from agents.crew_setup import run_agents
 from report.generator import generate_report, save_report
 
 
 def run_pipeline(arxiv_url: str, output_path: str = "judgement_report.md") -> str:
     """
-    Full end-to-end pipeline:
-      1. Scrape arXiv paper
-      2. Parse into sections
-      3. Chunk sections
-      4. Run 4 agents (Consistency, Grammar, Novelty, Fact-Check)
-      5. Aggregate + Fabrication score
-      6. Generate & save Markdown report
+    Full end-to-end pipeline using original crew_setup with new utility structure.
 
     Args:
         arxiv_url:   The arXiv paper URL (abs format).
