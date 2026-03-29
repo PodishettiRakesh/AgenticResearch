@@ -6,43 +6,101 @@ A **modular multi-agent AI system** that autonomously analyzes research papers f
 
 To provide comprehensive, automated analysis of academic papers using specialized AI agents, helping researchers, reviewers, and institutions assess paper quality and authenticity.
 
-## 🏗️ Architecture (Restructured v2.0)
+## 🏗️ System Architecture
 
-### **Modular Design**
+### **Core Components**
 ```
-agents/
-├── base/              # Abstract base classes
-├── consistency/       # Consistency analysis agent
-├── grammar/          # Grammar analysis agent  
-├── novelty/          # Novelty assessment agent
-├── factcheck/        # Fact-checking agent
-├── fabrication/      # Fabrication aggregator
-└── prompts/          # Organized prompts by agent
-
-utils/
-├── llm/              # Hybrid LLM system (Gemini + Ollama)
-├── scraping/         # Web scraping & parsing
-├── processing/        # Text chunking & processing
-└── config/           # Configuration management
-
-core/
-├── interfaces.py      # Abstract interfaces
-├── exceptions.py      # Custom exceptions
-└── pipeline.py       # Main orchestration
+├── agents/           # Specialized AI agents
+│   ├── consistency/  # Methodology vs results analysis
+│   ├── grammar/      # Language quality evaluation  
+│   ├── novelty/      # Originality assessment
+│   ├── factcheck/    # Claim verification
+│   └── fabrication/  # Result synthesis & scoring
+├── utils/           # Infrastructure utilities
+│   ├── llm/         # Hybrid LLM management
+│   ├── scraping/    # Web content extraction
+│   └── processing/  # Text chunking & parsing
+└── core/            # System orchestration
+    ├── pipeline.py  # Main execution flow
+    └── interfaces.py # Abstract contracts
 ```
 
-### **Agent System**
-```python
-# 5 Specialized Agents
-1. Consistency Agent → Methodology vs Results logic
-2. Grammar Agent → Language quality & tone  
-3. Novelty Agent → Originality assessment
-4. Fact-Check Agent → Claim verification
-5. Fabrication Agent → Result synthesis & scoring
-
-# Execution Flow
-Scraping → Parsing → Chunking → Agents → Report
+### **Data Flow Pipeline**
 ```
+arXiv URL → HTML Scraper → Section Parser → Text Chunker
+                                                    ↓
+Specialized Agents (Consistency, Grammar, Novelty, Fact-Check)
+                                                    ↓
+Fabrication Agent → Aggregated Scores → Markdown Report
+```
+
+### **System Architecture Diagram**
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           AGENTIC RESEARCH PIPELINE                            │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   arXiv     │───▶│   HTML      │───▶│   Section   │───▶│    Text     │
+│     URL     │    │   Scraper   │    │   Parser    │    │   Chunker   │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+                                                            │
+                                                            ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           HYBRID LLM SYSTEM                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐              ┌─────────────┐                              │
+│  │   Gemini    │◀─────────────▶│   Ollama    │                              │
+│  │  (Cloud)    │   Provider    │  (Local)    │                              │
+│  └─────────────┘   Switching    └─────────────┘                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                                            │
+                                                            ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           SEQUENTIAL AGENT PIPELINE                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│ Consistency │───▶│   Grammar   │───▶│   Novelty   │───▶│ Fact-Check  │
+│   Agent     │    │   Agent     │    │   Agent     │    │   Agent     │
+│ (Map-Reduce)│    │ (Single)    │    │ (Single)    │    │ (Map-Reduce)│
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+                                                            │
+                                                            ▼
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│Fabrication  │───▶│   Report    │───▶│   Streamlit │
+│   Agent     │    │  Generator  │    │   Web UI    │
+│ (Aggregator)│    │ (Markdown)  │    │ (Interface) │
+└─────────────┘    └─────────────┘    └─────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              SYSTEM COMPONENTS                                  │
+│  • Configuration Management (.env settings)                                     │
+│  • Error Handling & Logging (Graceful degradation)                             │
+│  • Token Management (Chunking & Map-Reduce)                                    │
+│  • Observability (Pipeline tracking & monitoring)                              │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### **Sequential Pipeline Design**
+- **Deterministic Execution**: Agents run in controlled sequence for reproducible results
+- **Simplicity First**: Clear dependency chain eliminates race conditions and debugging complexity
+- **Controlled Flow**: Each agent builds upon previous analysis, ensuring logical progression
+- **Easy Debugging**: Linear execution makes failure isolation straightforward
+
+## 🔄 Sequential Multi-Agent Design
+
+### **Why Sequential Pipeline?**
+- **Deterministic Results**: Each analysis builds on previous outputs, ensuring consistent evaluation
+- **Controlled Complexity**: Eliminates race conditions and coordination overhead
+- **Debuggable Architecture**: Linear execution makes failure isolation straightforward
+- **Resource Efficiency**: Optimizes LLM token usage through staged processing
+
+### **Execution Benefits**
+- **Simplicity**: No complex agent coordination or consensus mechanisms
+- **Reliability**: Single point of failure per stage, easier error handling
+- **Maintainability**: Clear separation of concerns with defined interfaces
+- **Scalability**: Individual agents can be optimized independently
 
 ## 🤖 Hybrid LLM System
 
@@ -115,6 +173,124 @@ streamlit run app.py
 - **Error Handling**: Graceful degradation and recovery
 - **Comprehensive Logging**: Debug and monitoring support
 
+## 🎯 Key Design Decisions
+
+### **HTML over PDF Parsing**
+- **Why**: arXiv provides structured HTML with semantic section headers
+- **Benefit**: Reliable section extraction without OCR complexity
+- **Fallback**: Automatic PDF parsing when HTML unavailable
+
+### **Map-Reduce for Long Sections**
+- **Problem**: Methodology/results sections exceed 16k token limits
+- **Solution**: Chunk analysis → partial results → synthesis
+- **Result**: Each LLM call stays under 4k tokens, ensuring reliability
+
+### **No Embeddings/Vector Database**
+- **Rationale**: Research papers require deep reasoning, not similarity matching
+- **Advantage**: Eliminates embedding drift and maintenance overhead
+- **Trade-off**: Higher compute cost but more accurate analysis
+
+### **Image Handling via Captions**
+- **Approach**: Extract figure captions and table descriptions
+- **Reasoning**: LLMs can't process images directly
+- **Benefit**: Preserves context without vision model dependencies
+
+## �️ Edge Case Handling
+
+### **Robust Section Parsing**
+- **Keyword-Based Detection**: Uses academic section headers (Abstract, Introduction, Methodology, Results, Conclusion)
+- **Non-Standard Handling**: Graceful fallback for papers with unconventional structures
+- **Missing Section Recovery**: Falls back to full-text analysis when standard sections absent
+- **Future Enhancement**: LLM-based semantic section classification for improved detection
+
+### **Long Document Processing**
+- **Chunk-wise Analysis**: Large methodology sections broken into analyzable segments
+- **Context Preservation**: Overlapping chunks maintain semantic continuity
+- **Progressive Synthesis**: Results aggregated incrementally to build complete picture
+- **Quality Assurance**: Cross-chunk consistency checks during aggregation phase
+
+### **Missing HTML Content**
+- **Primary**: Attempt HTML parsing from arXiv
+- **Fallback 1**: Parse PDF if available
+- **Fallback 2**: Use abstract-only analysis with limited scope
+- **Graceful Degradation**: Always provide meaningful output
+
+### **Image & Figure Processing**
+- **Caption Extraction**: Parses figure captions and table descriptions for context
+- **Surrounding Text**: Includes preceding/following paragraphs for semantic understanding
+- **Limitation**: No visual analysis - relies on textual descriptions only
+- **Future Scope**: Integration with multimodal models for direct image analysis
+
+## 🤖 Agent Orchestration Strategy
+
+### **Modular Independence**
+- **Design**: Each agent operates independently with clear interfaces
+- **Benefits**: Easy testing, maintenance, and individual optimization
+- **Communication**: Structured data contracts between agents
+
+### **Execution Flow**
+```
+1. Consistency Agent → Analyzes methodology vs results logic
+2. Grammar Agent → Evaluates language quality and tone  
+3. Novelty Agent → Assesses originality and contribution
+4. Fact-Check Agent → Verifies claims and citations
+5. Fabrication Agent → Synthesizes all outputs into final score
+```
+
+### **Fabrication Score Computation**
+- **Weighted Signal Aggregation**: Combines multiple risk indicators with calibrated weights
+- **Key Signals**:
+  - Logical inconsistencies (Consistency Agent): 40% weight
+  - Unsupported claims (Fact-Check Agent): 25% weight  
+  - Contradictory statements (Cross-agent analysis): 20% weight
+  - Language anomalies (Grammar Agent): 15% weight
+- **Confidence Scoring**: Probability percentage based on signal strength and consensus
+- **Risk Calibration**: Thresholds tuned for academic paper evaluation patterns
+
+### **Error Propagation**
+- **Isolation**: Agent failures don't cascade to other agents
+- **Fallback**: Missing agent outputs are handled gracefully
+- **Logging**: Comprehensive error tracking for debugging
+
+## � Why Multi-Agent Approach
+
+### **Separation of Concerns**
+- **Specialized Expertise**: Each agent focuses on specific evaluation dimension
+- **Domain Optimization**: Prompts and logic tuned for particular analysis types
+- **Quality Enhancement**: Specialized agents outperform general-purpose LLM calls
+
+### **Modular Extensibility**
+- **Easy Enhancement**: New evaluation dimensions can be added without affecting existing agents
+- **Independent Testing**: Each agent can be validated and improved separately
+- **Flexible Orchestration**: Pipeline can be reconfigured for different use cases
+
+### **Better Evaluation Quality**
+- **Focused Analysis**: Agents avoid context switching between different evaluation types
+- **Deeper Insights**: Specialized prompts extract more nuanced information
+- **Consistent Scoring**: Standardized evaluation criteria within each domain
+
+## ��️ System Design Philosophy
+
+### **Simplicity Over Over-Engineering**
+- **Principle**: Minimal components, maximum functionality
+- **Implementation**: Direct LLM calls without complex middleware
+- **Benefit**: Reduced maintenance, easier debugging, faster iteration
+
+### **Reasoning Over Retrieval**
+- **Approach**: Deep analytical reasoning vs. similarity search
+- **Rationale**: Research paper evaluation requires critical thinking
+- **Result**: More nuanced and accurate assessments
+
+### **Explainability First**
+- **Design**: Every decision point is traceable
+- **Output**: Detailed reasoning for each agent's conclusion
+- **Value**: Users understand WHY a paper received its score
+
+### **Scalability by Design**
+- **Architecture**: Modular agents enable horizontal scaling
+- **Resources**: Efficient token usage for cost optimization
+- **Future**: Easy addition of new analysis dimensions
+
 ## 🔧 Development Status
 
 ### **✅ Completed**
@@ -125,17 +301,10 @@ streamlit run app.py
 - [x] Pipeline orchestration
 - [x] Web interface (Streamlit)
 
-### **🔄 In Progress**
+### **🔄 Current Focus**
 - [ ] Comprehensive test suite
 - [ ] Performance optimization
 - [ ] Batch processing capabilities
-- [ ] Advanced error handling
-
-### **📋 Planned**
-- [ ] Machine learning integration
-- [ ] Real-time collaboration
-- [ ] Mobile application
-- [ ] Database integration
 
 ## 📁 Project Structure
 
@@ -181,20 +350,34 @@ Consistency → Grammar → Novelty → Fact-Check → Fabrication
     (context passing between agents)
 ```
 
-## 📈 Performance
+## 📈 Performance Characteristics
 
-### **Benchmarks**
-- **Paper Processing**: 2-5 minutes total
-- **Memory Usage**: <2GB for typical papers
-- **API Efficiency**: Optimized chunking for minimal calls
-- **Accuracy**: 85-95% on known test cases
+### **Processing Metrics**
+- **Analysis Time**: 2-5 minutes per paper (varies by length)
+- **Memory Usage**: <2GB for typical academic papers
+- **Token Efficiency**: Optimized chunking minimizes API calls
+- **Concurrent Processing**: Agents operate in parallel where possible
 
-### **Scalability**
-- **Horizontal**: Multiple agents for parallel processing
-- **Vertical**: Enhanced analysis capabilities
-- **Integration**: External databases and APIs
+### **Scalability Design**
+- **Horizontal Scaling**: Modular agents enable distributed deployment
+- **Vertical Scaling**: Enhanced analysis capabilities through agent specialization
+- **Resource Optimization**: Intelligent chunking respects token limits
+- **Integration Ready**: Clean interfaces for external system connections
 
-## 🛠️ Development
+## � Observability & Reliability
+
+### **Pipeline Visibility**
+- **Stage Tracking**: Each agent execution logged with timing and token usage
+- **Progress Monitoring**: Real-time status updates for long-running analyses
+- **Result Validation**: Consistency checks between agent outputs
+
+### **Failure Handling**
+- **Graceful Degradation**: System continues analysis even if individual agents fail
+- **Fallback Mechanisms**: Alternative strategies when primary approaches fail
+- **Error Recovery**: Automatic retries with exponential backoff for API failures
+- **Comprehensive Logging**: Detailed error tracking for debugging and monitoring
+
+## �️ Development
 
 ### **Setup**
 ```bash
@@ -238,17 +421,34 @@ python main.py --url "https://arxiv.org/html/2603.25702v1"
 - **[HYBRID_LLM_SETUP.md](HYBRID_LLM_SETUP.md)**: LLM configuration guide
 - **[setup_ollama.bat](setup_ollama.bat)**: Automated Ollama setup script
 
-## 🤝 Contributing
+---
 
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -am 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
+## 🚀 Future Improvements
 
-## 📄 License
+### **Enhanced Section Detection**
+- **LLM-Based Classification**: Use semantic understanding for non-standard section formats
+- **Multi-Language Support**: Extend beyond English academic papers
+- **Adaptive Parsing**: Learn section patterns from different academic fields
 
-This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
+### **Advanced Fact-Checking**
+- **Web Integration**: Real-time claim verification against academic databases
+- **Citation Validation**: Cross-reference claims with cited papers
+- **Knowledge Base Integration**: Domain-specific fact repositories
+
+### **Improved Scoring Models**
+- **Machine Learning Enhancement**: Train calibration models on verified datasets
+- **Domain-Specific Tuning**: Different scoring weights for various academic fields
+- **Confidence Intervals**: Statistical uncertainty quantification for scores
+
+### **Performance Optimization**
+- **Parallel Processing**: Concurrent agent execution where dependencies allow
+- **Caching Layer**: Memoize repeated analyses across similar papers
+- **Batch Operations**: Process multiple papers efficiently in production
+
+### **Multimodal Capabilities**
+- **Image Analysis**: Direct processing of figures and charts
+- **Table Extraction**: Structured data extraction from complex tables
+- **Formula Analysis**: Mathematical expression evaluation and verification
 
 ## 🙏 Acknowledgments
 
@@ -392,13 +592,24 @@ The generated `judgement_report.md` contains:
 
 ---
 
-## 🛡️ Token Handling
+## 🛡️ Token & Chunking Strategy
 
-- **Hard limit per call:** ~4 000 tokens input (well under the 16k limit)
-- **Chunk size:** 4 800 characters ≈ 1 200 tokens
-- **Overlap:** 400 characters to preserve context across chunk boundaries
-- **Max chunks per agent:** 6 (to avoid rate-limit exhaustion on free tier)
-- **Abstract:** Never chunked — kept whole (capped at 3 000 chars)
+### **Why Chunking is Required**
+- **Token Limits**: LLM context windows capped at 16k tokens (Gemini 1.5 Flash)
+- **Methodology Sections**: Often exceed limits with detailed experimental procedures
+- **Results Sections**: Can be lengthy with extensive data and analysis
+- **Context Preservation**: Chunking ensures no information loss while respecting limits
+
+### **Map-Reduce Implementation**
+- **Map Phase**: Each chunk (~1,200 tokens) analyzed independently with consistent prompts
+- **Reduce Phase**: Partial analyses synthesized into coherent evaluation
+- **Overlap Strategy**: 400-character overlap preserves context across chunk boundaries
+- **Token Budgeting**: Each call stays under 4k tokens (chunk + prompt + response buffer)
+
+### **Scalability Benefits**
+- **Predictable Performance**: Consistent token usage enables reliable cost estimation
+- **Parallel Processing**: Chunks can be processed concurrently when beneficial
+- **Memory Efficiency**: Prevents context window overflow and memory issues
 
 ---
 
